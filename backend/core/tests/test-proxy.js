@@ -1,9 +1,6 @@
 const axios = require("axios");
-const $parse = require('./proxy/parsers');
-const $process = require("./proxy/operators");
-const $produce = require("./proxy/producers");
 
-
+const {$parse, $process, $produce} = require("../proxy");
 const operators = [
     {
         type: "Type Filter",

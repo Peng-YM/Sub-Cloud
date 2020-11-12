@@ -19,6 +19,68 @@ const AVAILABLE_OPERATORS = {
     "Script Operator": ScriptOperator,
 }
 
+async function $process(proxies, operators = []) {
+    for (const item of operators) {
+        // process script
+        let script;
+        if (item.type.indexOf("Script") !== -1) {
+            const {mode, content} = item.args;
+            if (mode === "link") {
+                // if this is remote script, download it
+                script = await axios
+                    .get(content)
+                    .then((resp) => resp.data)
+                    .catch((err) => {
+                        throw new Error(
+                            `Error when downloading remote script: ${item.args.content}.\n Reason: ${err}`
+                        );
+                    });
+            } else {
+                script = content;
+            }
+        }
+
+        const op = AVAILABLE_OPERATORS[item.type];
+        if (!op) {
+            console.error(`Unknown operator: "${item.type}"`);
+            continue;
+        }
+        if (item.type.indexOf("Filter") !== -1) {
+            console.log(
+                `Applying filter "${item.type}" with arguments:\n >>> ${
+                    JSON.stringify(item.args) || "None"
+                }`
+            );
+
+            try {
+                if (item.type.indexOf("Script") !== -1) {
+                    proxies = processFilter(op(script), proxies);
+                } else {
+                    proxies = processFilter(op(item.args), proxies);
+                }
+            } catch (err) {
+                console.error(`Failed to apply filter "${item.type}"!\n REASON: ${err}`);
+            }
+        } else if (item.type.indexOf("Operator") !== -1) {
+            console.log(
+                `Applying operator "${item.type}" with arguments: \n >>> ${
+                    JSON.stringify(item.args) || "None"
+                }`
+            );
+            try {
+                if (item.type.indexOf("Script") !== -1) {
+                    proxies = processOperator(op(script), proxies);
+                } else {
+                    proxies = processOperator(op(item.args), proxies);
+                }
+            } catch (err) {
+                console.error(`Failed to apply operator "${item.type}"!\n REASON: ${err}`);
+            }
+        }
+    }
+    return proxies;
+}
+
 /**************************** Operators ***************************************/
 // force to set some properties (e.g., scert, udp, tfo, etc.)
 function SetPropertyOperator({key, value}) {
@@ -565,68 +627,6 @@ function processOperator(operator, proxies) {
         console.log(`ERROR: cannot apply operator ${op.name}! Reason: ${err}`);
     }
     return output;
-}
-
-async function $process(proxies, operators = []) {
-    for (const item of operators) {
-        // process script
-        let script;
-        if (item.type.indexOf("Script") !== -1) {
-            const {mode, content} = item.args;
-            if (mode === "link") {
-                // if this is remote script, download it
-                script = await axios
-                    .get(content)
-                    .then((resp) => resp.data)
-                    .catch((err) => {
-                        throw new Error(
-                            `Error when downloading remote script: ${item.args.content}.\n Reason: ${err}`
-                        );
-                    });
-            } else {
-                script = content;
-            }
-        }
-
-        const op = AVAILABLE_OPERATORS[item.type];
-        if (!op) {
-            console.error(`Unknown operator: "${item.type}"`);
-            continue;
-        }
-        if (item.type.indexOf("Filter") !== -1) {
-            console.log(
-                `Applying filter "${item.type}" with arguments:\n >>> ${
-                    JSON.stringify(item.args) || "None"
-                }`
-            );
-
-            try {
-                if (item.type.indexOf("Script") !== -1) {
-                    proxies = processFilter(op(script), proxies);
-                } else {
-                    proxies = processFilter(op(item.args), proxies);
-                }
-            } catch (err) {
-                console.error(`Failed to apply filter "${item.type}"!\n REASON: ${err}`);
-            }
-        } else if (item.type.indexOf("Operator") !== -1) {
-            console.log(
-                `Applying operator "${item.type}" with arguments: \n >>> ${
-                    JSON.stringify(item.args) || "None"
-                }`
-            );
-            try {
-                if (item.type.indexOf("Script") !== -1) {
-                    proxies = processOperator(op(script), proxies);
-                } else {
-                    proxies = processOperator(op(item.args), proxies);
-                }
-            } catch (err) {
-                console.error(`Failed to apply operator "${item.type}"!\n REASON: ${err}`);
-            }
-        }
-    }
-    return proxies;
 }
 
 module.exports = $process;
